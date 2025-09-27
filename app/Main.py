@@ -2,15 +2,28 @@ from app.layouts import app
 import sys
 from PySide6.QtWidgets import QApplication, QLabel
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 
-if __name__ == "__main__":
+class ImageLabel(QLabel):
+    def __init__(self, image_path, parent=None):
+        super().__init__(parent)
+        self.original_pixmap = QPixmap(image_path)
+        self.setAlignment(Qt.AlignCenter)
+
+    def resizeEvent(self, event):
+        if not self.original_pixmap.isNull():
+            scaled = self.original_pixmap.scaledToWidth(
+                self.width(), Qt.SmoothTransformation
+            )
+            self.setPixmap(scaled)
+        super().resizeEvent(event)
+
+if __name__ == "__main__":  
     app_instance = QApplication(sys.argv)
 
-    custom_content = QLabel("This is a custom content area!", None)
-    custom_content.setAlignment(Qt.AlignCenter)
-    custom_content.setStyleSheet("font-size: 18px; padding: 20px;")
+    label = ImageLabel("assets/images.png")
 
-
-    main_window = app.AppLayout(content_widget=custom_content)
+    main_window = app.AppLayout(content_widget=label)
     main_window.show()
+
     sys.exit(app_instance.exec())
