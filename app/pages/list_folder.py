@@ -1,11 +1,11 @@
-# Tambahan import
 import os, sys, shutil
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import Qt, QPoint, QTimer
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-    QPushButton, QMessageBox, QMenu
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QCheckBox,
+    QListWidget, QListWidgetItem, QPushButton, QMessageBox, QMenu
 )
 
+# kalau kamu sudah punya fungsi2 ini di app/functions, keep importnya:
 from app.functions.delete import delete_selected
 from app.functions.rename import rename_selected
 from app.functions.create import create_folder
@@ -18,39 +18,76 @@ except Exception:
 BASE_DIR  = r"C:\Users\Arya Ersi Putra"
 START_DIR = os.path.join(BASE_DIR, "Downloads")
 
-class PageListFolder(QWidget):
+
+class PageFileExplorer(QWidget):
     def __init__(self, start_dir: str = START_DIR):
         super().__init__()
         self.current_path = start_dir
 
         root = QVBoxLayout(self)
+        root.setContentsMargins(12, 12, 12, 12)
+        root.setSpacing(8)
+
+        # ===== Header: Up + path + (opsional) tombol lain =====
         head = QHBoxLayout()
         self.up_btn = QPushButton("⬆ Up")
         self.up_btn.clicked.connect(self.go_up)
         self.path_label = QLabel()
         self.path_label.setStyleSheet("font-weight: bold; font-size: 16px;")
-        head.addWidget(self.up_btn); head.addWidget(self.path_label, 1)
+        head.addWidget(self.up_btn)
+        head.addWidget(self.path_label, 1)
         root.addLayout(head)
 
+        # ===== Bar pencarian + opsi recursive =====
+        search_row = QHBoxLayout()
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Cari file/folder (mis. png)…")
+        self.chk_recursive = QCheckBox("Recursive")
+        self.chk_recursive.setChecked(True)
+        search_row.addWidget(self.search_input, 1)
+        search_row.addWidget(self.chk_recursive)
+        root.addLayout(search_row)
+
+        # Debounce timer
+        self.search_timer = QTimer(self)
+        self.search_timer.setInterval(500)  # 0.5s
+        self.search_timer.setSingleShot(True)
+        self.search_timer.timeout.connect(self.run_search)
+        self.search_input.textChanged.connect(lambda _t: self.search_timer.start())
+        self.search_input.returnPressed.connect(self.run_search)
+
+        # ===== List hasil / isi folder =====
         self.list_widget = QListWidget()
         self.list_widget.setStyleSheet("""
-            padding: 8px; background-color: #222; border: 1px solid #444;
-            color: white; font-size: 15px;
+            padding: 8px; background-color: #222;
+            border: 1px solid #444; color: white; font-size: 15px;
+            border-radius: 4px;
         """)
         root.addWidget(self.list_widget)
+
+        # Placeholder saat kosong
+        self.placeholder = QLabel("Masukkan kata kunci…")
+        self.placeholder.setAlignment(Qt.AlignCenter)
+        self.placeholder.setStyleSheet("color: gray; font-size: 14px;")
+        root.addWidget(self.placeholder)
+        self.placeholder.hide()
 
         # Double click buka
         self.list_widget.itemDoubleClicked.connect(self.on_open_selected)
 
-        # ==== Context menu (klik kanan) ====
+        # Context menu (klik kanan)
         self.list_widget.setContextMenuPolicy(Qt.CustomContextMenu)
         self.list_widget.customContextMenuRequested.connect(self.show_context_menu)
 
+        # Muat awal
         self.populate_list(self.current_path)
 
-    # --------- data/populate ----------
+    # ---------- tampilan isi folder ----------
     def populate_list(self, folder_path: str):
         self.list_widget.clear()
+        self.placeholder.hide()
+        self.list_widget.show()
+
         self.current_path = folder_path
         self.path_label.setText(folder_path)
 
@@ -68,9 +105,49 @@ class PageListFolder(QWidget):
 
         self.up_btn.setEnabled(os.path.dirname(self.current_path) != self.current_path)
 
-    # --------- klik kanan ----------
+    # ---------- pencarian ----------
+    def run_search(self):
+        keyword = self.search_input.text().strip().lower()
+        if not keyword:
+            # kosong -> kembali tampil isi folder biasa
+            self.populate_list(self.current_path)
+            return
+
+        self.list_widget.clear()
+
+        found = False
+        if self.chk_recursive.isChecked():
+            # Rekursif (os.walk)
+            for root, dirs, files in os.walk(self.current_path):
+                for name in dirs + files:
+                    if keyword in name.lower():
+                        path = os.path.join(root, name)
+                        icon = "📁 " if os.path.isdir(path) else "📄 "
+                        item = QListWidgetItem(icon + name)
+                        item.setData(Qt.UserRole, path)
+                        self.list_widget.addItem(item)
+                        found = True
+        else:
+            # Hanya level saat ini (os.scandir)
+            with os.scandir(self.current_path) as it:
+                for entry in it:
+                    if keyword in entry.name.lower():
+                        icon = "📁 " if entry.is_dir() else "📄 "
+                        item = QListWidgetItem(icon + entry.name)
+                        item.setData(Qt.UserRole, entry.path)
+                        self.list_widget.addItem(item)
+                        found = True
+
+        if not found:
+            self.list_widget.hide()
+            self.placeholder.setText("Data Kosong")
+            self.placeholder.show()
+        else:
+            self.placeholder.hide()
+            self.list_widget.show()
+
+    # ---------- context menu ----------
     def show_context_menu(self, pos: QPoint):
-        # Pastikan item di bawah kursor jadi current
         item = self.list_widget.itemAt(pos)
         if item:
             self.list_widget.setCurrentItem(item)
@@ -96,14 +173,20 @@ class PageListFolder(QWidget):
         elif chosen == act_newdir:
             create_folder(self)
         elif chosen == act_refresh:
-            self.populate_list(self.current_path)
+            # refresh tergantung mode: kalau ada keyword, ulangi search; kalau tidak, populate
+            if self.search_input.text().strip():
+                self.run_search()
+            else:
+                self.populate_list(self.current_path)
 
-    # --------- aksi utama ----------
+    # ---------- aksi utama ----------
     def on_open_selected(self, item: QListWidgetItem):
         if not item:
             return
         path = item.data(Qt.UserRole)
         if os.path.isdir(path):
+            # kalau lagi dalam mode search, buka folder & bersihkan keyword
+            self.search_input.clear()
             self.populate_list(path)
         else:
             self.open_file(path)
@@ -111,14 +194,16 @@ class PageListFolder(QWidget):
     def go_up(self):
         parent = os.path.dirname(self.current_path)
         if parent and parent != self.current_path:
+            self.search_input.clear()  # keluar dari mode search
             self.populate_list(parent)
 
-
-    # --------- util ---------
+    # ---------- util ----------
     def open_file(self, path: str):
         try:
             if sys.platform.startswith("win"):
                 os.startfile(path)
+            elif sys.platform == "darwin":
+                os.system(f'open "{path}"')
             else:
                 os.system(f'xdg-open "{path}"')
         except Exception as e:

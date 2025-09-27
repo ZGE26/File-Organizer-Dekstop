@@ -5,7 +5,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from app.pages.dashboard import PageDashboard
-from app.pages.list_folder import PageListFolder
+from app.pages.list_folder import PageFileExplorer
+from app.pages.organizer_file import PageOrganizerFile
 
 class AppLayout(QWidget):
     def __init__(self, content_widget=None):
@@ -43,9 +44,12 @@ class AppLayout(QWidget):
         btn_dashboard.setStyleSheet("font-weight: bold; padding: 8px;")
         btn_folders  = QPushButton("Folders", self.sidebar_frame)
         btn_folders.setStyleSheet("font-weight: bold; padding: 8px;")
+        btn_organizer = QPushButton("Search", self.sidebar_frame)
+        btn_organizer.setStyleSheet("font-weight: bold; padding: 8px;")
 
         self.sidebar_layout.addWidget(btn_dashboard)
         self.sidebar_layout.addWidget(btn_folders)
+        self.sidebar_layout.addWidget(btn_organizer)
         self.sidebar_layout.addStretch()
 
         self.center_layout.addWidget(self.sidebar_frame)
@@ -56,6 +60,7 @@ class AppLayout(QWidget):
         self.content_container.setStyleSheet("""
               #contentContainer {
                 border: 2px solid white;
+                border-radius: 
             }
         """)
         self.content_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -91,6 +96,7 @@ class AppLayout(QWidget):
         # Event
         btn_dashboard.clicked.connect(self.show_dashboard)
         btn_folders.clicked.connect(self.show_list_folder)
+        btn_organizer.clicked.connect(self.show_organizer_file)
 
     # ===== Helper ganti konten =====
     def _set_content(self, widget: QWidget):
@@ -106,4 +112,7 @@ class AppLayout(QWidget):
         self._set_content(PageDashboard())
 
     def show_list_folder(self):
-        self._set_content(PageListFolder())
+        self._set_content(PageFileExplorer())
+
+    def show_organizer_file(self):
+        self._set_content(PageOrganizerFile())
