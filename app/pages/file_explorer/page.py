@@ -1,24 +1,21 @@
-import os, sys, shutil
+import os, sys
 from PySide6.QtCore import Qt, QPoint, QTimer, QDir, QSize
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QCheckBox,
-    QListWidget, QListWidgetItem, QMessageBox, QMenu, 
-    QStackedLayout, QComboBox, QFileDialog, QToolButton, 
-    QFrame, QStyle
+    QListWidget, QListWidgetItem, QMessageBox, QMenu, QStackedLayout,
+    QComboBox, QFileDialog, QToolButton, QFrame, QStyle
 )
 from PySide6.QtGui import QKeySequence, QShortcut
 
-
-# kalau kamu sudah punya fungsi2 ini di app/functions, keep importnya:
+# fungsi app kamu (biarkan seperti semula)
 from app.functions.delete import delete_selected
 from app.functions.rename import rename_selected
 from app.functions.create import create_folder
-from app.functions.open_file import open_file
+from app.functions.open_file import open_file  # pakai punyamu sendiri
 
-try:
-    from send2trash import send2trash
-except Exception:
-    send2trash = None
+# modul lokal
+from .theme import THEME
+from .helpers import make_tool_button, bind_shortcuts
 
 BASE_DIR  = r"C:\Users\Arya Ersi Putra"
 START_DIR = os.path.join(BASE_DIR, "Downloads")
@@ -28,73 +25,34 @@ class PageFileExplorer(QWidget):
     def __init__(self, start_dir: str = START_DIR):
         super().__init__()
         self.current_path = start_dir
-
         self.back_stack: list[str] = []
-        self.fwd_stack: list[str] = []
+        self.fwd_stack: list[str]  = []
 
-        # === THEME ===
-        THEME = """
-        QWidget { background-color: #141414; color: #EDEDED; }
-        QLabel#PathLabel { font-weight: 700; font-size: 16px; padding: 4px; }
-        .QCard {
-          background-color: #1E1E1E;
-          border: 1px solid #2A2A2A;
-          border-radius: 10px;
-        }
-        QToolButton {
-          background: #222;
-          border: 1px solid #333;
-          border-radius: 8px;
-          padding: 0px;
-        }
-        QToolButton:hover { background: #2A2A2A; }
-        QToolButton:pressed { background: #1A1A1A; }
-        QLineEdit, QComboBox {
-          background: #1C1C1C;
-          border: 1px solid #2C2C2C;
-          border-radius: 8px;
-          padding: 6px 10px;
-          selection-background-color: #4A90E2;
-        }
-        QComboBox::drop-down { border: none; width: 24px; }
-        QComboBox QAbstractItemView {
-          background: #1C1C1C;
-          border: 1px solid #2C2C2C;
-          selection-background-color: #303F9F;
-        }
-        QListWidget {
-          background: #1A1A1A;
-          border: 1px solid #2A2A2A;
-          border-radius: 10px;
-          padding: 6px;
-        }
-        QListWidget::item { padding: 8px 6px; }
-        QListWidget::item:selected {
-          background: #263238;
-          border-radius: 6px;
-        }
-        """
+        # theme
         self.setStyleSheet(THEME)
 
-        # === Layout Utama ===
+        # ===== layout utama =====
         root = QVBoxLayout(self)
         root.setContentsMargins(16, 16, 16, 16)
         root.setSpacing(10)
 
-        # === Toolbar Header ===
+        # ===== toolbar header =====
         tool_card = QFrame()
         tool_card.setProperty("class", "QCard")
         tool_lay = QHBoxLayout(tool_card)
         tool_lay.setContentsMargins(8, 8, 8, 8)
         tool_lay.setSpacing(8)
 
-        self.back_btn = self._tool(QStyle.SP_ArrowBack, "Back")
+        self.back_btn = make_tool_button(self, QStyle.SP_ArrowBack, "Back")
         self.back_btn.clicked.connect(self.go_back)
         self.back_btn.setEnabled(False)
 
-        self.fwd_btn  = self._tool(QStyle.SP_ArrowForward, "Forward")
+        self.fwd_btn  = make_tool_button(self, QStyle.SP_ArrowForward, "Forward")
         self.fwd_btn.clicked.connect(self.go_forward)
         self.fwd_btn.setEnabled(False)
+
+        self.up_btn   = make_tool_button(self, QStyle.SP_ArrowUp, "Up")
+        self.up_btn.clicked.connect(self.go_up)
 
         self.path_label = QLabel()
         self.path_label.setObjectName("PathLabel")
@@ -102,12 +60,12 @@ class PageFileExplorer(QWidget):
 
         tool_lay.addWidget(self.back_btn)
         tool_lay.addWidget(self.fwd_btn)
+        tool_lay.addWidget(self.up_btn)
         tool_lay.addSpacing(6)
         tool_lay.addWidget(self.path_label, 1)
-
         root.addWidget(tool_card)
 
-        # === Drive + Search Bar ===
+        # ===== drive + search bar =====
         bar_card = QFrame()
         bar_card.setProperty("class", "QCard")
         bar = QHBoxLayout(bar_card)
@@ -128,10 +86,9 @@ class PageFileExplorer(QWidget):
         bar.addSpacing(6)
         bar.addWidget(self.search_input, 1)
         bar.addWidget(self.chk_recursive)
-
         root.addWidget(bar_card)
 
-        # === List / Placeholder ===
+        # ===== list / placeholder =====
         self.list_widget = QListWidget()
 
         self.placeholder = QLabel("Masukkan kata kunci…")
@@ -152,11 +109,9 @@ class PageFileExplorer(QWidget):
         content_lay.addWidget(self.stack_host)
         root.addWidget(content_card)
 
-        # === Event wiring ===
+        # ===== wiring =====
         self.refresh_drives()
-        self.drive_combo.currentTextChanged.connect(lambda text: (
-            self.search_input.clear(), self.navigate_to(text)
-        ))
+        self.drive_combo.currentTextChanged.connect(self._on_drive_changed)
 
         # debounce search
         self.search_timer = QTimer(self)
@@ -166,29 +121,25 @@ class PageFileExplorer(QWidget):
         self.search_input.textChanged.connect(lambda _t: self.search_timer.start())
         self.search_input.returnPressed.connect(self.run_search)
 
-        # double click & context menu
+        # double click & menu
         self.list_widget.itemDoubleClicked.connect(self.on_open_selected)
         self.list_widget.setContextMenuPolicy(Qt.CustomContextMenu)
         self.list_widget.customContextMenuRequested.connect(self.show_context_menu)
 
-        # init load
+        # init
         self.navigate_to(self.current_path, add_to_history=False)
 
         # shortcuts
-        QShortcut(QKeySequence("Alt+Left"),  self, activated=self.go_back)
-        QShortcut(QKeySequence("Alt+Right"), self, activated=self.go_forward)
+        bind_shortcuts(self, self.go_back, self.go_forward, self.go_up)
 
-    # --- helper buat tombol icon square ---
-    def _tool(self, std_icon, tooltip: str):
-        btn = QToolButton()
-        btn.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        btn.setIcon(self.style().standardIcon(std_icon))
-        btn.setIconSize(QSize(18, 18))
-        btn.setFixedSize(32, 32)
-        btn.setToolTip(tooltip)
-        return btn
+    # ====== event handlers ======
+    def _on_drive_changed(self, text: str):
+        if not text:
+            return
+        self.search_input.clear()
+        self.navigate_to(text)
 
-    # ---------- populate list ----------
+    # ====== core ======
     def populate_list(self, folder_path: str):
         self.list_widget.clear()
         self.stacked.setCurrentIndex(0)
@@ -207,8 +158,25 @@ class PageFileExplorer(QWidget):
                 item.setData(Qt.UserRole, entry.path)
                 self.list_widget.addItem(item)
 
+        # up button state
+        self.up_btn.setEnabled(os.path.dirname(self.current_path) != self.current_path)
 
-    # ---------- search ----------
+    def navigate_to(self, folder_path: str, add_to_history: bool = True):
+        if not os.path.isdir(folder_path):
+            QMessageBox.warning(self, "Error", f"Bukan folder:\n{folder_path}")
+            return
+        if add_to_history and getattr(self, "current_path", None) and folder_path != self.current_path:
+            self.back_stack.append(self.current_path)
+            self.fwd_stack.clear()
+
+        self.populate_list(folder_path)
+        self.update_nav_buttons()
+
+    def update_nav_buttons(self):
+        self.back_btn.setEnabled(len(self.back_stack) > 0)
+        self.fwd_btn.setEnabled(len(self.fwd_stack) > 0)
+
+    # ====== search ======
     def run_search(self):
         keyword = self.search_input.text().strip().lower()
         if not keyword:
@@ -241,10 +209,11 @@ class PageFileExplorer(QWidget):
         if not found:
             self.placeholder.setText("Data Kosong")
 
-    # ---------- context menu ----------
+    # ====== context menu ======
     def show_context_menu(self, pos: QPoint):
         item = self.list_widget.itemAt(pos)
-        if item: self.list_widget.setCurrentItem(item)
+        if item:
+            self.list_widget.setCurrentItem(item)
 
         menu = QMenu(self)
         act_open   = menu.addAction("Open")
@@ -255,7 +224,8 @@ class PageFileExplorer(QWidget):
         act_refresh= menu.addAction("Refresh")
 
         chosen = menu.exec_(self.list_widget.mapToGlobal(pos))
-        if not chosen: return
+        if not chosen:
+            return
 
         if chosen == act_open:
             self.on_open_selected(self.list_widget.currentItem())
@@ -271,24 +241,27 @@ class PageFileExplorer(QWidget):
             else:
                 self.populate_list(self.current_path)
 
-    # ---------- aksi utama ----------
+    # ====== navigation ======
     def on_open_selected(self, item: QListWidgetItem):
-        if not item: return
+        if not item:
+            return
         path = item.data(Qt.UserRole)
         if os.path.isdir(path):
             self.search_input.clear()
             self.navigate_to(path)
         else:
+            # pakai implementasi open_file kamu sendiri
             open_file(self, path)
 
     def go_up(self):
         parent = os.path.dirname(self.current_path)
         if parent and parent != self.current_path:
             self.search_input.clear()
-            self.navigate_to(parent) 
+            self.navigate_to(parent)
 
     def go_back(self):
-        if not self.back_stack: return
+        if not self.back_stack:
+            return
         target = self.back_stack.pop()
         if self.current_path and os.path.isdir(self.current_path):
             self.fwd_stack.append(self.current_path)
@@ -296,28 +269,15 @@ class PageFileExplorer(QWidget):
         self.update_nav_buttons()
 
     def go_forward(self):
-        if not self.fwd_stack: return
+        if not self.fwd_stack:
+            return
         target = self.fwd_stack.pop()
         if self.current_path and os.path.isdir(self.current_path):
             self.back_stack.append(self.current_path)
         self.populate_list(target)
         self.update_nav_buttons()
 
-    def navigate_to(self, folder_path: str, add_to_history: bool = True):
-        if not os.path.isdir(folder_path):
-            QMessageBox.warning(self, "Error", f"Bukan folder:\n{folder_path}")
-            return
-        if add_to_history and getattr(self, "current_path", None) and folder_path != self.current_path:
-            self.back_stack.append(self.current_path)
-            self.fwd_stack.clear()
-
-        self.populate_list(folder_path)
-        self.update_nav_buttons()
-
-    def update_nav_buttons(self):
-        self.back_btn.setEnabled(len(self.back_stack) > 0)
-        self.fwd_btn.setEnabled(len(self.fwd_stack) > 0)
-
+    # ====== drive helpers ======
     def refresh_drives(self):
         self.drive_combo.blockSignals(True)
         self.drive_combo.clear()
@@ -325,7 +285,8 @@ class PageFileExplorer(QWidget):
         if sys.platform.startswith("win"):
             drives = [fi.absoluteFilePath() for fi in QDir.drives()]
             if not drives:
-                drives = [f"{chr(c)}:/" for c in range(ord('A'), ord('Z')+1) if os.path.exists(f"{chr(c)}:/")]
+                drives = [f"{chr(c)}:/" for c in range(ord('A'), ord('Z')+1)
+                          if os.path.exists(f"{chr(c)}:/")]
             self.drive_combo.addItems(drives)
             root_drive = os.path.splitdrive(self.current_path)[0].replace("\\", "/") + "/"
             idx = self.drive_combo.findText(root_drive, Qt.MatchFixedString)
