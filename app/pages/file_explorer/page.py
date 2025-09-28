@@ -57,7 +57,6 @@ class PageFileExplorer(QWidget):
 
         tool_lay.addWidget(self.back_btn)
         tool_lay.addWidget(self.fwd_btn)
-        tool_lay.addWidget(self.up_btn)
         tool_lay.addSpacing(6)
         tool_lay.addWidget(self.path_label, 1)
         root.addWidget(tool_card)
@@ -154,9 +153,6 @@ class PageFileExplorer(QWidget):
                 item = QListWidgetItem(icon + entry.name)
                 item.setData(Qt.UserRole, entry.path)
                 self.list_widget.addItem(item)
-
-        # up button state
-        self.up_btn.setEnabled(os.path.dirname(self.current_path) != self.current_path)
 
     def navigate_to(self, folder_path: str, add_to_history: bool = True):
         if not os.path.isdir(folder_path):
