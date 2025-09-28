@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from app.pages.dashboard import PageDashboard
-from app.pages.list_folder import PageFileExplorer
+from app.pages.file_explorer.page import PageFileExplorer
 from app.pages.organizer_file import FileOrganizer
 
 class AppLayout(QWidget):

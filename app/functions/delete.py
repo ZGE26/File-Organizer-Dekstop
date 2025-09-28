@@ -2,7 +2,6 @@ import os
 import shutil
 from PySide6.QtWidgets import QMessageBox
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QListWidgetItem
 from send2trash import send2trash
 
 

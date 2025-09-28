@@ -51,9 +51,6 @@ class PageFileExplorer(QWidget):
         self.fwd_btn.clicked.connect(self.go_forward)
         self.fwd_btn.setEnabled(False)
 
-        self.up_btn   = make_tool_button(self, QStyle.SP_ArrowUp, "Up")
-        self.up_btn.clicked.connect(self.go_up)
-
         self.path_label = QLabel()
         self.path_label.setObjectName("PathLabel")
         self.path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -130,7 +127,7 @@ class PageFileExplorer(QWidget):
         self.navigate_to(self.current_path, add_to_history=False)
 
         # shortcuts
-        bind_shortcuts(self, self.go_back, self.go_forward, self.go_up)
+        bind_shortcuts(self, self.go_back, self.go_forward)
 
     # ====== event handlers ======
     def _on_drive_changed(self, text: str):
