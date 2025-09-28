@@ -2,13 +2,14 @@ import os, sys, shutil
 from PySide6.QtCore import Qt, QPoint, QTimer
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QCheckBox,
-    QListWidget, QListWidgetItem, QPushButton, QMessageBox, QMenu
+    QListWidget, QListWidgetItem, QPushButton, QMessageBox, QMenu, QStackedLayout, QSizePolicy
 )
 
 # kalau kamu sudah punya fungsi2 ini di app/functions, keep importnya:
 from app.functions.delete import delete_selected
 from app.functions.rename import rename_selected
 from app.functions.create import create_folder
+from app.functions.open_file import open_file
 
 try:
     from send2trash import send2trash
@@ -63,19 +64,30 @@ class PageFileExplorer(QWidget):
             border: 1px solid #444; color: white; font-size: 15px;
             border-radius: 4px;
         """)
-        root.addWidget(self.list_widget)
+        # root.addWidget(self.list_widget)
+
+        self.list_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
 
         # Placeholder saat kosong
         self.placeholder = QLabel("Masukkan kata kunci…")
         self.placeholder.setAlignment(Qt.AlignCenter)
         self.placeholder.setStyleSheet("color: gray; font-size: 14px;")
-        root.addWidget(self.placeholder)
-        self.placeholder.hide()
+        self.placeholder.setMinimumHeight(160) 
+        # root.addWidget(self.placeholder)
+        # self.placeholder.hide()
 
-        # Double click buka
+        # Stacked layout dibungkus widget
+        self.stack_host = QWidget()
+        self.stacked = QStackedLayout(self.stack_host)
+        self.stacked.addWidget(self.list_widget)   # index 0
+        self.stacked.addWidget(self.placeholder)   # index 1
+        self.stacked.setCurrentIndex(0) 
+
+        root.addWidget(self.stack_host)
+
+        # Double click buka & Context menu (klik kanan)
         self.list_widget.itemDoubleClicked.connect(self.on_open_selected)
-
-        # Context menu (klik kanan)
         self.list_widget.setContextMenuPolicy(Qt.CustomContextMenu)
         self.list_widget.customContextMenuRequested.connect(self.show_context_menu)
 
@@ -85,8 +97,10 @@ class PageFileExplorer(QWidget):
     # ---------- tampilan isi folder ----------
     def populate_list(self, folder_path: str):
         self.list_widget.clear()
-        self.placeholder.hide()
-        self.list_widget.show()
+        # self.placeholder.hide()
+        # self.list_widget.show()
+
+        self.stacked.setCurrentIndex(0)
 
         self.current_path = folder_path
         self.path_label.setText(folder_path)
@@ -139,12 +153,14 @@ class PageFileExplorer(QWidget):
                         found = True
 
         if not found:
-            self.list_widget.hide()
+            # self.list_widget.hide()
             self.placeholder.setText("Data Kosong")
-            self.placeholder.show()
+            # self.placeholder.show()
+            self.stacked.setCurrentIndex(1)
         else:
-            self.placeholder.hide()
-            self.list_widget.show()
+            # self.placeholder.hide()
+            # self.list_widget.show()
+            self.stacked.setCurrentIndex(0)
 
     # ---------- context menu ----------
     def show_context_menu(self, pos: QPoint):
@@ -189,22 +205,10 @@ class PageFileExplorer(QWidget):
             self.search_input.clear()
             self.populate_list(path)
         else:
-            self.open_file(path)
+            open_file(self, path)
 
     def go_up(self):
         parent = os.path.dirname(self.current_path)
         if parent and parent != self.current_path:
             self.search_input.clear()  # keluar dari mode search
             self.populate_list(parent)
-
-    # ---------- util ----------
-    def open_file(self, path: str):
-        try:
-            if sys.platform.startswith("win"):
-                os.startfile(path)
-            elif sys.platform == "darwin":
-                os.system(f'open "{path}"')
-            else:
-                os.system(f'xdg-open "{path}"')
-        except Exception as e:
-            QMessageBox.warning(self, "Open Failed", f"Gagal membuka:\n{path}\n\n{e}")

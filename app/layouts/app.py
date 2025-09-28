@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt
 
 from app.pages.dashboard import PageDashboard
 from app.pages.list_folder import PageFileExplorer
-from app.pages.organizer_file import PageOrganizerFile
+from app.pages.organizer_file import FileOrganizer
 
 class AppLayout(QWidget):
     def __init__(self, content_widget=None):
@@ -20,9 +20,9 @@ class AppLayout(QWidget):
         self.main_layout.setSpacing(8)
 
         # Header (tetap fixed)
-        header = QLabel("Header", self)
+        header = QLabel("File Manager and File Organizer", self)
         header.setAlignment(Qt.AlignCenter)
-        header.setStyleSheet("background-color: lightgray; font-size: 20px; padding: 10px;")
+        header.setStyleSheet("background-color: black; font-size: 20px; padding: 10px;")
         self.main_layout.addWidget(header)
 
         # ===== BODY FRAME (ambil sisa tinggi: 100vh-Header-Footer) =====
@@ -44,7 +44,7 @@ class AppLayout(QWidget):
         btn_dashboard.setStyleSheet("font-weight: bold; padding: 8px;")
         btn_folders  = QPushButton("Folders", self.sidebar_frame)
         btn_folders.setStyleSheet("font-weight: bold; padding: 8px;")
-        btn_organizer = QPushButton("Search", self.sidebar_frame)
+        btn_organizer = QPushButton("Organizer", self.sidebar_frame)
         btn_organizer.setStyleSheet("font-weight: bold; padding: 8px;")
 
         self.sidebar_layout.addWidget(btn_dashboard)
@@ -115,4 +115,4 @@ class AppLayout(QWidget):
         self._set_content(PageFileExplorer())
 
     def show_organizer_file(self):
-        self._set_content(PageOrganizerFile())
+        self._set_content(FileOrganizer())
