@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     label = ImageLabel("assets/images.png")
 
-    main_window = app.AppLayout(content_widget=label)
+    main_window = app.AppLayout(content_widget=label, default_page=None)
     main_window.show()
 
     sys.exit(app_instance.exec())
